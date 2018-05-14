@@ -15,6 +15,7 @@ class BitmapEncrypter {
     private def bytesToBinary = { byte[] inputByteArray ->
         char[] resArray = new char[inputByteArray.size() * 8], tempArray
         for (int i = 0; i < inputByteArray.size(); i++) {
+            // java bytes range = -128..127 instead of 0..255
             if (inputByteArray[i] < 0) {
                 inputByteArray[i] = 128 + inputByteArray[i]
                 resArray[0] = '1'
@@ -41,118 +42,112 @@ class BitmapEncrypter {
         return array
     }
 
-    private def setEncryptionFlag = {
-        char[] encryptedFileFlagBinary = bytesToBinary(ENCRYPTED_FILE_FLAG), binaryColor
-        byte[] newRed, newGreen, newBlue
-        int[] colorArray = bmp.getPixelRGB(0, 0)
+    private int pixelContentGetter(int x, int y){
+        char[] contentBinary = new char[8], binaryColor
+        int[] colorArray = bmp.getPixelRGB(x, y)
+        // get needful bits from color pixel (x; y)
         // @red
         binaryColor = bytesToBinary(colorArray[0].byteValue())
-        binaryColor[6] = encryptedFileFlagBinary[0]
-        binaryColor[7] = encryptedFileFlagBinary[1]
+        contentBinary[0] = binaryColor[6]
+        contentBinary[1] = binaryColor[7]
+        // @green
+        binaryColor = bytesToBinary(colorArray[1].byteValue())
+        contentBinary[2] = binaryColor[5]
+        contentBinary[3] = binaryColor[6]
+        contentBinary[4] = binaryColor[7]
+        // @blue
+        binaryColor = bytesToBinary(colorArray[2].byteValue())
+        contentBinary[5] = binaryColor[5]
+        contentBinary[6] = binaryColor[6]
+        contentBinary[7] = binaryColor[7]
+
+        return ByteBuffer.wrap(binaryToBytes(contentBinary)).int
+    }
+
+    private def newPixelSetter (char[] newBits, int x, int y) {
+        byte[] newRed, newGreen, newBlue
+        char[] binaryColor
+        int[] colorArray = bmp.getPixelRGB(x, y)
+        // get needful bits from color pixel (x; y)
+        // @red
+        binaryColor = bytesToBinary(colorArray[0].byteValue())
+        binaryColor[6] = newBits[0]
+        binaryColor[7] = newBits[1]
         newRed = binaryToBytes(binaryColor)
         // @green
         binaryColor = bytesToBinary(colorArray[1].byteValue())
-        binaryColor[5] = encryptedFileFlagBinary[2]
-        binaryColor[6] = encryptedFileFlagBinary[3]
-        binaryColor[7] = encryptedFileFlagBinary[4]
+        binaryColor[5] = newBits[2]
+        binaryColor[6] = newBits[3]
+        binaryColor[7] = newBits[4]
         newGreen = binaryToBytes(binaryColor)
         // @blue
         binaryColor = bytesToBinary(colorArray[2].byteValue())
-        binaryColor[5] = encryptedFileFlagBinary[5]
-        binaryColor[6] = encryptedFileFlagBinary[6]
-        binaryColor[7] = encryptedFileFlagBinary[7]
+        binaryColor[5] = newBits[5]
+        binaryColor[6] = newBits[6]
+        binaryColor[7] = newBits[7]
         newBlue = binaryToBytes(binaryColor)
 
+        // new color array
         colorArray = [ByteBuffer.wrap(newRed).int,
                       ByteBuffer.wrap(newGreen).int,
                       ByteBuffer.wrap(newBlue).int]
-        bmp.setPixelRGB(0, 0, colorArray)
+        bmp.setPixelRGB(x, y, colorArray)
+    }
+
+    private def setEncryptionFlag = {
+        char[] encryptedFileFlagBinary = bytesToBinary(ENCRYPTED_FILE_FLAG)
+        newPixelSetter(encryptedFileFlagBinary, 0, 0)
     }
 
     boolean isEncrypted(){
-        char[] encryptedFileFlagBinary = new char[8], binaryColor
-        int[] colorArray = bmp.getPixelRGB(0, 0)
-        // get needful bits from color pixel 0.0
-        // @red
-        binaryColor = bytesToBinary(colorArray[0].byteValue())
-        encryptedFileFlagBinary[0] = binaryColor[6]
-        encryptedFileFlagBinary[1] = binaryColor[7]
-        // @green
-        binaryColor = bytesToBinary(colorArray[1].byteValue())
-        encryptedFileFlagBinary[2] = binaryColor[5]
-        encryptedFileFlagBinary[3] = binaryColor[6]
-        encryptedFileFlagBinary[4] = binaryColor[7]
-        // @blue
-        binaryColor = bytesToBinary(colorArray[2].byteValue())
-        encryptedFileFlagBinary[5] = binaryColor[5]
-        encryptedFileFlagBinary[6] = binaryColor[6]
-        encryptedFileFlagBinary[7] = binaryColor[7]
-
         // check if result is equal to ENCRYPTED_FILE_FLAG
-        return ByteBuffer.wrap(binaryToBytes(encryptedFileFlagBinary)).int == ENCRYPTED_FILE_FLAG
+        return pixelContentGetter(0,0) == ENCRYPTED_FILE_FLAG
     }
 
     private def setSizeOfXMessage = {
-        char[] sizeXMessage = bytesToBinary(xMessageBytes.size().byteValue()), binaryColor
-        byte[] newRed, newGreen, newBlue
-        int[] colorArray = bmp.getPixelRGB(0, 1)
-        // @red
-        binaryColor = bytesToBinary(colorArray[0].byteValue())
-        binaryColor[6] = sizeXMessage[0]
-        binaryColor[7] = sizeXMessage[1]
-        newRed = binaryToBytes(binaryColor)
-        // @green
-        binaryColor = bytesToBinary(colorArray[1].byteValue())
-        binaryColor[5] = sizeXMessage[2]
-        binaryColor[6] = sizeXMessage[3]
-        binaryColor[7] = sizeXMessage[4]
-        newGreen = binaryToBytes(binaryColor)
-        // @blue
-        binaryColor = bytesToBinary(colorArray[2].byteValue())
-        binaryColor[5] = sizeXMessage[5]
-        binaryColor[6] = sizeXMessage[6]
-        binaryColor[7] = sizeXMessage[7]
-        newBlue = binaryToBytes(binaryColor)
-
-        colorArray = [ByteBuffer.wrap(newRed).int,
-                      ByteBuffer.wrap(newGreen).int,
-                      ByteBuffer.wrap(newBlue).int]
-        bmp.setPixelRGB(0, 1, colorArray)
+        char[] sizeXMessage = bytesToBinary(xMessageBytes.size().byteValue())
+        newPixelSetter(sizeXMessage, 0, 1)
     }
 
-    short getSizeOfXMessage(){
-        char[] sizeOfXMessage = new char[8], binaryColor
-        int[] colorArray = bmp.getPixelRGB(0, 1)
-        // get needful bits from color pixel 0.1
-        // @red
-        binaryColor = bytesToBinary(colorArray[0].byteValue())
-        sizeOfXMessage[0] = binaryColor[6]
-        sizeOfXMessage[1] = binaryColor[7]
-        // @green
-        binaryColor = bytesToBinary(colorArray[1].byteValue())
-        sizeOfXMessage[2] = binaryColor[5]
-        sizeOfXMessage[3] = binaryColor[6]
-        sizeOfXMessage[4] = binaryColor[7]
-        // @blue
-        binaryColor = bytesToBinary(colorArray[2].byteValue())
-        sizeOfXMessage[5] = binaryColor[5]
-        sizeOfXMessage[6] = binaryColor[6]
-        sizeOfXMessage[7] = binaryColor[7]
-
-        return ByteBuffer.wrap(binaryToBytes(sizeOfXMessage)).int
+    private short getSizeOfXMessage(){
+        return pixelContentGetter(0,1)
     }
 
     void encryptXMessage(String xMessage){
         this.xMessageBytes = xMessage.bytes
-        char[] xMessageBinary = bytesToBinary(xMessageBytes)
-        if (this.encrypted) { println "Bitmap pic is already contained message!"; return }
-        else{ setEncryptionFlag() ; println "Successful setting flag!" }
-        setSizeOfXMessage()
-        /*for (int i = 0; i < bmp.bitmapWidth; i++) {
-            for (int j = 0; j < bmp.bitmapHeight; j++) {
+        char[] xMessageBinary
+        int sizeCounter
 
+        if (this.encrypted) { println "Bitmap pic is already contained message!"; return }
+        else{ setEncryptionFlag() }
+        setSizeOfXMessage()
+        for (int i = 0; i < bmp.bitmapWidth; i++) {
+            for (int j = 2; j < bmp.bitmapHeight; j++) {
+                if(sizeCounter < xMessageBytes.size()){
+                    xMessageBinary = bytesToBinary(xMessageBytes[sizeCounter])
+                    newPixelSetter(xMessageBinary, i, j)
+                    sizeCounter++
+                }else{ println "Pic was successfully encrypted"; return}
             }
-        }*/
+        }
+        println "Pic was successfully encrypted"
+    }
+
+    String decryptXMessage(){
+        if(this.encrypted){
+            int sizeOfXMessage = this.sizeOfXMessage, sizeCounter = 0
+            xMessageBytes = new byte[sizeOfXMessage]
+            for (int i = 0; i < bmp.bitmapWidth; i++) {
+                for (int j = 2; j < bmp.bitmapHeight; j++) {
+                    if(sizeCounter < sizeOfXMessage){
+                        xMessageBytes[sizeCounter] = pixelContentGetter(i, j)
+                        sizeCounter++
+                    } else {
+                        return new String(xMessageBytes)
+                    }
+                }
+            }
+        }else{ return "Bitmap pic isn't contain message!" }
     }
 
     void saveEncryptedBitmap(String path, String fileName) {
